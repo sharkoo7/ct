@@ -44,22 +44,28 @@ NETLIST_METADATA = (
 GRAPH_ADJACENCY_MATRIX = ('sparse_adj_i', 'sparse_adj_j', 'sparse_adj_weight',
                           'edge_counts')
 
+# NODE_STATIC_FEATURES = (
+#     'macros_w',
+#     'macros_h',
+#     'node_types',
+# )
 NODE_STATIC_FEATURES = (
-    'macros_w',
-    'macros_h',
     'node_types',
 )
-
 STATIC_OBSERVATIONS = (
     NETLIST_METADATA + GRAPH_ADJACENCY_MATRIX + NODE_STATIC_FEATURES)
 
 INITIAL_DYNAMIC_OBSERVATIONS = (
+    'macros_w',
+    'macros_h',
     'locations_x',
     'locations_y',
     'is_node_placed',
 )
 
 DYNAMIC_OBSERVATIONS = (
+    'macros_w',
+    'macros_h',
     'locations_x',
     'locations_y',
     'is_node_placed',
@@ -150,7 +156,7 @@ class ObservationConfig(object):
                 low=0, high=self.max_num_nodes - 1, shape=(1,), dtype=np.int32),
         'mask':
             gym.spaces.Box(
-                low=0, high=1, shape=(self.max_grid_size**2,), dtype=np.int32),
+                low=0, high=self.max_grid_size, shape=(self.max_grid_size**2,), dtype=np.int32),
     })
 
 

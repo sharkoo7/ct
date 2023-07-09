@@ -25,6 +25,7 @@ from typing import Dict, Iterator, List, Optional, Tuple, Any, Union
 
 from absl import logging
 from circuit_training.environment import plc_client
+from circuit_training.environment import plc_client_os
 import numpy as np
 
 # Internal gfile dependencies
@@ -179,7 +180,85 @@ def fix_port_coordinates(plc: plc_client.PlacementCost) -> None:
   for node in nodes_of_types(plc, ['PORT']):
     plc.fix_node_coord(node)
 
+def create_placement_cost_os(
+    plc_client: None,
+    netlist_file: str,
+    init_placement: Optional[str] = None,
+    overlap_threshold: float = 4e-3,
+    congestion_smooth_range: int = 2,
+    # TODO(b/211039937): Increase macro spacing to 3-5um, after matching the
+    # performance for Ariane.
+    macro_macro_x_spacing: float = 0.1,
+    macro_macro_y_spacing: float = 0.1,
+    boundary_check: bool = False,
+    horizontal_routes_per_micron: float = 70.33,
+    vertical_routes_per_micron: float = 74.51,
+    macro_horizontal_routing_allocation: float = 51.79,
+    macro_vertical_routing_allocation: float = 51.79,
+) -> plc_client.PlacementCost:
+    """Creates a placement_cost object.
+    Args:
+        netlist_file: Path to the netlist proto text file.
+        init_placement: Path to the inital placement .plc file.
+        overlap_threshold: Used for macro overlap detection.
+        congestion_smooth_range: Smoothing factor used for congestion estimation.
+        Congestion is distributed to this many neighboring columns/rows.'
+        macro_macro_x_spacing: Macro-to-macro x spacing in microns.
+        macro_macro_y_spacing: Macro-to-macro y spacing in microns.
+        boundary_check: Do a boundary check during node placement.
+        horizontal_routes_per_micron: Horizontal route capacity per micros.
+        vertical_routes_per_micron: Vertical route capacity per micros.
+        macro_horizontal_routing_allocation: Macro horizontal routing allocation.
+        macro_vertical_routing_allocation: Macro vertical routing allocation.
+    Returns:
+        A PlacementCost object.
+    """
+    if not netlist_file:
+        raise ValueError('netlist_file should be provided.')
 
+    block_name = extract_attribute_from_comments('Block',
+                                                [init_placement, netlist_file])
+    if not block_name:
+        logging.warning(
+            'block_name is not set. '
+            'Please add the block_name in:\n%s\nor in:\n%s', netlist_file,
+            init_placement)
+
+    plc = plc_client_os.PlacementCost(netlist_file, macro_macro_x_spacing,
+                                    macro_macro_y_spacing)
+
+    blockages = get_blockages_from_comments([netlist_file, init_placement])
+    if blockages:
+        print(blockages)
+        for blockage in blockages:
+            print(*blockage)
+            plc.create_blockage(*blockage)
+
+    sizes = extract_sizes_from_comments([netlist_file, init_placement])
+    print(sizes)
+    if sizes:
+        canvas_width, canvas_height, grid_cols, grid_rows = sizes
+        if canvas_width and canvas_height and grid_cols and grid_rows:
+            plc.set_canvas_size(canvas_width, canvas_height)
+            plc.set_placement_grid(grid_cols, grid_rows)
+
+    plc.set_project_name('circuit_training')
+    plc.set_block_name(block_name or 'unset_block')
+    plc.set_routes_per_micron(horizontal_routes_per_micron,
+                                vertical_routes_per_micron)
+    plc.set_macro_routing_allocation(macro_horizontal_routing_allocation,
+                                    macro_vertical_routing_allocation)
+    plc.set_congestion_smooth_range(congestion_smooth_range)
+    plc.set_overlap_threshold(overlap_threshold)
+    plc.set_canvas_boundary_check(boundary_check)
+    plc.make_soft_macros_square()
+    # exit(0)
+    # print(plc.get_soft_macros_count())
+    if init_placement:
+        plc.restore_placement(init_placement)
+        fix_port_coordinates(plc)
+
+    return plc
 # The routing capacities are calculated based on the public information about
 # 7nm technology (https://en.wikichip.org/wiki/7_nm_lithography_process)
 # with an arbitary, yet reasonable, assumption of 18% of the tracks for
@@ -306,8 +385,8 @@ def make_blockage_text(plc: plc_client.PlacementCost) -> str:
   return ret
 
 
-def save_placement(plc: plc_client.PlacementCost,
-                   filename: str,
+def save_placement(plc: plc_client.PlacementCost, plc_file: str,pb_file: str = '',
+                    Netlist: bool = False,
                    user_comments: str = '') -> None:
   """Saves the placement file with some information in the comments section."""
   cols, rows = plc.get_grid_num_columns_rows()
@@ -335,7 +414,7 @@ def save_placement(plc: plc_client.PlacementCost,
     Overlap threshold : {overlap_threshold}
   """.format(
       src_filename=plc.get_source_filename(),
-      filename=filename,
+      filename=plc_file,
       date=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
       cols=cols,
       rows=rows,
@@ -364,10 +443,14 @@ def save_placement(plc: plc_client.PlacementCost,
   if user_comments:
     info += '\nUser comments:\n' + user_comments + '\n'
   info += '\nnode_index x y orientation fixed'
-  return plc.save_placement(filename, info)
+
+  # pb_file = "macro_placed.pb.txt"
+  if(Netlist):
+      plc.write_protobuf(pb_file,info)
+  plc.save_placement(plc_file, info)
 
 
-def fd_placement_schedule(plc: plc_client.PlacementCost,
+def fd_placement_schedule(plc_os: plc_client.PlacementCost,pb_file:str, plc_file: str,
                           num_steps: Tuple[int, ...] = (100, 100, 100),
                           io_factor: float = 1.0,
                           move_distance_factors: Tuple[float,
@@ -378,7 +461,6 @@ def fd_placement_schedule(plc: plc_client.PlacementCost,
                           use_current_loc: bool = False,
                           move_macros: bool = False) -> None:
   """A placement schedule that uses force directed method.
-
   Args:
     plc: The plc object.
     num_steps: Number of steps of the force-directed algorithm during each call.
@@ -396,6 +478,7 @@ def fd_placement_schedule(plc: plc_client.PlacementCost,
   assert len(num_steps) == len(move_distance_factors)
   assert len(num_steps) == len(repel_factor)
   assert len(num_steps) == len(attract_factor)
+  plc = create_placement_cost(pb_file,plc_file)
   canvas_size = max(plc.get_canvas_width_height())
   max_move_distance = [
       f * canvas_size / s for s, f in zip(num_steps, move_distance_factors)
@@ -406,6 +489,11 @@ def fd_placement_schedule(plc: plc_client.PlacementCost,
   plc.optimize_stdcells(use_current_loc, move_stdcells, move_macros,
                         log_scale_conns, use_sizes, io_factor, num_steps,
                         max_move_distance, attract_factor, repel_factor)
+
+  for node_index in nodes_of_types(plc, ['MACRO']):
+      if plc.is_node_soft_macro(node_index):
+          x_pos, y_pos = plc.get_node_location(node_index)
+          plc_os.set_soft_macro_position(node_index, x_pos, y_pos)
 
 
 def get_ordered_node_indices(mode: str,
