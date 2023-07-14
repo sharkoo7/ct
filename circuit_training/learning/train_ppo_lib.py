@@ -124,7 +124,6 @@ def train(
       saved_model_dir,
       tf_agent,
       train_step,
-      start=-num_episodes_per_iteration,
       interval=num_episodes_per_iteration)
 
   # Create the variable container.

@@ -1725,8 +1725,8 @@ class PlacementCost(object):
             mod_w = 1e-3
             mod_h = 1e-3
         else:
-            mod_w = mod.get_width()
-            mod_h = mod.get_height()
+            mod_w = mod.get_og_width()
+            mod_h = mod.get_og_height()
         area = mod.get_area()
         temp_node_mask = np.array([0] * (self.grid_col * self.grid_row))\
             .reshape(self.grid_row, self.grid_col)
@@ -1856,7 +1856,24 @@ class PlacementCost(object):
             print("[WARNING INDEX OUT OF RANGE] Can not process index at {}".format(node_idx))
             return None
 
-    
+    def get_node_og_width_height(self, node_idx: int):
+        """
+        Return node dimension
+        """
+        mod = None
+        try:
+            mod = self.modules_w_pins[node_idx]
+            assert mod.get_type() in ['MACRO', 'STDCELL', 'PORT']
+        except AssertionError:
+            print("[ERROR NODE FIXED] Found {}. Only 'MACRO', 'macro', 'STDCELL'".format(mod.get_type())
+                    +"'PORT' are considered to be fixable nodes")
+            exit(1)
+        except Exception:
+            print("[ERROR NODE FIXED] Could not find module by node index")
+            exit(1)
+
+        return mod.get_og_width(), mod.get_og_height()
+
     def get_node_width_height(self, node_idx: int):
         """
         Return node dimension
@@ -2292,7 +2309,7 @@ class PlacementCost(object):
 
         return cell_hor, cell_ver
 
-    def place_node(self, node_idx, grid_cell_idx,shape):
+    def place_node(self, node_idx, grid_cell_idx, shape):
         """
         Place the node into the center of the given grid_cell
         """
@@ -2316,20 +2333,21 @@ class PlacementCost(object):
         if shape != 1 :
             # print("shape = %d" % shape)
             shape = shape - 1
-            step = mod.get_width() / 10
+            step = mod.get_og_width() / 10
             # change macro size
             if shape < 10:
                 #increace width
-                mod_w = mod.get_width() + step * shape
+                mod_w = mod.get_og_width() + step * shape
                 mod_h = mod.get_area() / mod_w
             else:
                 #decreace width
                 shape = shape - 10
-                mod_w = mod.get_width() - step * shape
+                mod_w = mod.get_og_width() - step * shape
                 mod_h = mod.get_area() / mod_w
-            ratio = mod_w / mod.get_width()
-            mod.change_size(mod_w,mod_h)
-            # print("change ", mod.get_name(), "size to ", mod.get_width()," ", mod.get_height())
+            ratio = mod_w / mod.get_og_width()
+            mod.change_size(mod_w, mod_h)
+            logging.info(mod.get_name(), "change size:", mod.get_og_width(),", ", mod.get_og_height(), "->",
+                         mod.get_width(), ", ", mod.get_height())
             #change macro pin
             for pin_name in self.hard_macros_to_inpins[mod.get_name()]:
                 mod_idx = self.mod_name_to_indices[pin_name]
@@ -2343,7 +2361,7 @@ class PlacementCost(object):
         # TODO: add check valid clause
         if not mod.get_fix_flag():
             mod.set_pos(*self.__get_grid_cell_position(grid_cell_idx))
-            x,y = mod.get_pos()
+            x, y = mod.get_pos()
             mod_w = mod.get_width()
             mod_h = mod.get_height()
             self.__add_module_to_grid_cells(
@@ -3364,8 +3382,8 @@ class PlacementCost(object):
         def __init__(self, name, width, height,
                      x = 0.0, y = 0.0, orientation = "N"):
             self.name = name
-            # self.og_width = float(width)
-            # self.og_height = float(height)
+            self.og_width = float(width)
+            self.og_height = float(height)
             self.width = float(width)
             self.height = float(height)
             self.x = float(x)
@@ -3434,11 +3452,11 @@ class PlacementCost(object):
         def get_width(self):
             return self.width
 
-        # def get_og_height(self):
-        #     return self.height
-        #
-        # def get_og_width(self):
-        #     return self.width
+        def get_og_height(self):
+            return self.og_height
+
+        def get_og_width(self):
+            return self.og_width
         
         def set_location(self, grid_cell_idx):
             self.location = grid_cell_idx
@@ -3482,6 +3500,8 @@ class PlacementCost(object):
             self.y = float(y)
             self.x_offset = float(x_offset)
             self.y_offset = float(y_offset)
+            self.og_x_offset = float(x_offset)
+            self.og_y_offset = float(y_offset)
             self.macro_name = macro_name
             self.weight = weight
             self.sink = {}
@@ -3507,11 +3527,18 @@ class PlacementCost(object):
             return self.x, self.y
 
         def change_offset(self,r):
-            self.x_offset *= r
-            self.y_offset /= r
+            """ x *= r
+            y /= r
+            """
+            self.x_offset = r * self.og_x_offset
+            self.y_offset = self.og_y_offset / r
 
         def get_offset(self):
             return self.x_offset, self.y_offset
+
+        def reset_offset(self):
+            self.x_offset = self.og_x_offset
+            self.y_offset =self.og_y_offset
 
         def get_name(self):
             return self.name
@@ -3601,3 +3628,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

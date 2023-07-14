@@ -64,12 +64,12 @@ class ObservationExtractor(object):
     self._extract_num_macros(features)
     self._extract_technology_info(features)
     self._extract_node_types(features)
-    self._extract_macro_size(features) 
+    self._extract_macro_size(features)
     self._extract_macro_and_port_adj_matrix(features)
     self._extract_canvas_size(features)
     self._extract_grid_size(features)
     self._extract_initial_node_locations(features)
-    self._extract_normalized_static_features(features) #todo macro size
+    self._extract_normalized_static_features(features)
     return features
 
   def _extract_normalized_static_features(
@@ -145,7 +145,7 @@ class ObservationExtractor(object):
         width = 0
         height = 0
       else:
-        width, height = self.plc.get_node_width_height(macro_idx)
+        width, height = self.plc.get_node_og_width_height(macro_idx)
       macros_w.append(width)
       macros_h.append(height)
     for _ in range(len(self.clustered_port_locations_vec)):
@@ -358,22 +358,17 @@ class ObservationExtractor(object):
     if previous_node_index >= 0:
       x, y = self.plc.get_node_location(
           self.plc.get_macro_indices()[previous_node_index])
-      # print(previous_node_index)
-      # print(self._features['locations_x'][previous_node_index])
       self._features['locations_x'][previous_node_index] = (
           x / (self.width + ObservationExtractor.EPSILON))
       self._features['locations_y'][previous_node_index] = (
           y / (self.height + ObservationExtractor.EPSILON))
-      # print(self._features['locations_x'][previous_node_index])
       w, h = self.plc.get_node_width_height(
           self.plc.get_macro_indices()[previous_node_index])
       self._features['macros_w'][previous_node_index] = (
               w / (self.width + ObservationExtractor.EPSILON))
       self._features['macros_h'][previous_node_index] = (
               h / (self.width + ObservationExtractor.EPSILON))
-      # print(self._features['is_node_placed'][previous_node_index])
       self._features['is_node_placed'][previous_node_index] = 1
-      # print(self._features['is_node_placed'][previous_node_index])
     self._features['mask'] = mask.astype(np.int32)
     self._features['current_node'] = np.asarray([current_node_index
                                                 ]).astype(np.int32)
@@ -396,5 +391,5 @@ class ObservationExtractor(object):
             previous_node_index=previous_node_index,
             current_node_index=current_node_index,
             mask=mask))
-    # print(features['locations_x'][previous_node_index])
     return features
+
