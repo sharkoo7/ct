@@ -58,6 +58,10 @@ class ObservationExtractor(object):
     # Extract static features.
     self._features = self._extract_static_features()
 
+    #save initial macro_w & macro_h feature
+    self._initial_macro_w = self._features['macro_w']
+    self._initial_macro_h = self._features['macro_h']
+
   def _extract_static_features(self) -> Dict[Text, np.ndarray]:
     """Static features that are invariant across training steps."""
     features = dict()
@@ -369,6 +373,9 @@ class ObservationExtractor(object):
       self._features['macros_h'][previous_node_index] = (
               h / (self.width + ObservationExtractor.EPSILON))
       self._features['is_node_placed'][previous_node_index] = 1
+    else:
+        self._features['macros_w'] = self._initial_macro_w
+        self._features['macros_h'] = self._initial_macro_h
     self._features['mask'] = mask.astype(np.int32)
     self._features['current_node'] = np.asarray([current_node_index
                                                 ]).astype(np.int32)
@@ -392,4 +399,6 @@ class ObservationExtractor(object):
             current_node_index=current_node_index,
             mask=mask))
     return features
+
+
 

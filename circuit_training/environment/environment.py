@@ -381,8 +381,8 @@ class CircuitEnv(object):
             if self._train_step:
                 user_comments = f'Train step : {self._train_step.numpy()}'
 
-            placement_util.save_placement(self._plc, self._output_plc_file,
-                                          user_comments)
+            # placement_util.save_placement(self._plc, self._output_plc_file,
+            #                               user_comments)
             ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
             ppo_snapshot_file = os.path.join(
                 self._output_plc_dir,
@@ -390,7 +390,7 @@ class CircuitEnv(object):
             ppo_snapshot_pb = os.path.join(
                 self._output_plc_dir,
                 f'snapshot_ppo_opt_placement_timestamp_{ts}_cost_{cost:.4f}.pb.txt')
-            placement_util.save_placement(self._plc, ppo_snapshot_file, ppo_snapshot_pb, True, user_comments)
+            placement_util.save_placement(self._plc, ppo_snapshot_file, ppo_snapshot_pb, user_comments)
             self._saved_cost = cost
 
             # Only runs CD if this is the best RL placement seen so far.

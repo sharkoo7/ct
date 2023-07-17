@@ -1825,6 +1825,7 @@ class PlacementCost(object):
         return self.__isOverlap(mod_block)
 
 
+
     def __isOverlap(self,mod_block):
         # check overlapping
         for pmod_idx in self.placed_macro:
@@ -3398,6 +3399,9 @@ class PlacementCost(object):
             self.width = width
             self.height = height
 
+        def reset_size(self):
+            self.width = self.og_width
+            self.height = self.og_height
         def get_name(self):
             return self.name
 

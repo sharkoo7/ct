@@ -45,6 +45,15 @@ def nodes_of_types(plc: plc_client.PlacementCost,
         i += 1
 
 
+# def reset_macro_size(plc: plc_client_os.PlacementCost):
+#     for node_index in nodes_of_types(plc, ['MACRO']):
+#         if plc.is_node_hard_macro(node_index):
+#             mod = plc.modules_w_pins[node_index]
+#             mod.re
+#             x_pos, y_pos = plc_gg.get_node_location(node_index)
+#             plc.set_soft_macro_position(node_index, x_pos, y_pos)
+
+
 def get_node_xy_coordinates(
         plc: plc_client.PlacementCost) -> Dict[int, Tuple[float, float]]:
     """Returns all node x,y coordinates (canvas) in a dict."""
@@ -419,7 +428,7 @@ def fd_placement_schedule(plc: plc_client_os.PlacementCost, pb_file: str, plc_fi
             plc.set_soft_macro_position(node_index, x_pos, y_pos)
 
 
-def get_ordered_node_indices(mode: str,
+def get_ordered_node_indices(modce: str,
                              plc: plc_client.PlacementCost,
                              exclude_fixed_nodes: bool = True) -> List[int]:
     """Returns an ordering of node indices according to the specified mode.
